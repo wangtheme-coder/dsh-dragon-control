@@ -38,10 +38,10 @@ export function createAuditLog(directory, { maxBytes = 10485760, retentionDays =
       await write({ ...base, phase: 'start' });
       try {
         const result = await operation();
-        await write({ ...base, phase: 'end', durationMs: now() - start, outcome: 'success' });
+        await write({ ...base, phase: 'end', durationMs: now() - start, outcome: 'success', ...(exec.dragonTimings ? { timings: exec.dragonTimings } : {}) });
         return result;
       } catch (error) {
-        try { await write({ ...base, phase: 'end', durationMs: now() - start, outcome: 'error',
+        try { await write({ ...base, phase: 'end', durationMs: now() - start, outcome: 'error', ...(exec.dragonTimings ? { timings: exec.dragonTimings } : {}),
           code: /^DRAGON_[A-Z_]+$/.test(error.code ?? '') ? error.code : error.name === 'AbortError' ? 'DRAGON_CANCELLED' : 'DRAGON_ACTION_FAILED' }); } catch {}
         throw error;
       }

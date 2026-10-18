@@ -1,6 +1,6 @@
 {
   "name": "dsh-dragon-control",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "type": "module",
   "description": "Windows x64 only: self-contained DOM/CDP browser (system Edge/Chrome) and UI Automation control for DSH Desktop.",
   "main": "index.mjs",

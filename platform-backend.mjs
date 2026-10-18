@@ -101,6 +101,12 @@ export function createPlatformBackend ({ native = runDragonNative, postActionWai
       signal?.throwIfAborted();
       await native({ op: 'click', x: point.x, y: point.y, button: 'left', count: 1 }, signal);
       await delay(60, undefined, { signal });
+      // 点下去到开始打字之间只有几十毫秒，但弹窗正是在这个缝里抢前台：前台不对就别把文字发出去。
+      const front = await native({ op: 'foreground' }, signal);
+      if (front?.hwnd && front.hwnd !== input.screen.windowId) {
+        throw fault('DRAGON_FOREGROUND_CHANGED',
+          `点击后前台变成了「${front.title || front.app || front.hwnd}」，没有输入文字；请重新 observe。`);
+      }
       if (input.replace) {
         await native({ op: 'key', keys: ['CTRL', 'A'] }, signal);
         await delay(30, undefined, { signal });

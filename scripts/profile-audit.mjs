@@ -1,0 +1,13 @@
+import { createAuditLog } from '../audit.mjs';
+import { runDragonNative } from '../dragon-native.mjs';
+import { runNative } from '../native-client.mjs';
+const exec = { agent: { id: 'profile', session: { id: 's' } } };
+const audit = createAuditLog(process.env.USERPROFILE + '/.dsh/dragon-control/logs');
+const t = async (label, fn) => { const s = Date.now(); await fn(); console.log(label.padEnd(18), String(Date.now() - s).padStart(5), 'ms'); };
+await t('audit.run(noop)', () => audit.run({ tool: 'x', action: 'y' }, exec, async () => 1));
+await t('audit.run(noop)#2', () => audit.run({ tool: 'x', action: 'y' }, exec, async () => 1));
+const front = (await runDragonNative({ op: 'foreground' })).hwnd;
+await t('foreground', () => runDragonNative({ op: 'foreground' }));
+await t('inspect', () => runNative({ op: 'inspect', windowId: front }));
+await t('key(shift)', () => runDragonNative({ op: 'key', keys: ['shift'] }));
+await t('capture', () => runDragonNative({ op: 'capture', hwnd: front, path: process.env.TEMP + '/p.png', mode: 'window' }));

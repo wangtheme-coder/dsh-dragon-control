@@ -64,6 +64,20 @@ test('batch forwards per-step arguments and an explicit observation id', async (
   assert.match(JSON.parse(result.content[0].text).steps[0].text, /"n":2/);
 });
 
+test('batch defaults the first step to the tool observation id and later steps to the latest', async () => {
+  const seen = [];
+  const def = name => ({ name, description: name, parameters: {}, execute: async () => ({ value: name }),
+    output: { render: () => [{ type: 'text', text: `ok observation_id=${name}-0000-4000-8000-000000000000` }] } });
+  const tool = makeControlTool({
+    name: 'dragon_browser', actions: { a: 'a', b: 'b', batch: 'dragon_batch' },
+    definitions: new Map([['a', def('a')], ['b', def('b')], ['dragon_batch', batchDefinition]]),
+    before: async ({ action, observation_id }) => { seen.push([action, observation_id]); }
+  });
+  const result = await tool.execute({ action: 'batch', observation_id: 'top-id', args: { steps: [{ action: 'a' }, { action: 'b' }, { action: 'a', observation_id: 'explicit' }] } }, { agent: { id: 'x' } });
+  assert.equal(JSON.parse(result.content[0].text).ok, true);
+  assert.deepEqual(seen, [['a', 'top-id'], ['b', 'a-0000-4000-8000-000000000000'], ['a', 'explicit']]);
+});
+
 test('all batch step parameters are checked before any earlier side effect', async () => {
   let sideEffects = 0;
   const def = { name: 'write', parameters: {}, execute: async () => { sideEffects++; return {}; }, output: { render: () => [] } };

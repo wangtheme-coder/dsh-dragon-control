@@ -10,6 +10,8 @@
 
 - 网页：打开、读取、DOM 点击、填表、多标签、条件等待、截图及 URL 下载。
 - 桌面：列出和选择窗口；按 UIA 控件句柄执行 Invoke、SetValue、Select、Toggle、Expand/Collapse；等待控件出现或消失。语义路线无需视觉模型。
+- 按需截图：点击、输入、按键、拖拽、打开应用默认只续上 `observation_id`，不抓图；要画面时再用 `observe`（始终截图）。省掉每一步 2560×1440 的 PNG，实测单步（`key`）从 1.0 秒降到 0.44 秒；会话内还要再省下每帧图片的传输与落盘。
+- 原生层常驻：`DragonNative.exe` / `A11yProbe.exe` 同进程复用，插件层单步（`key`，含守卫）从 1.89 秒降到 0.30 秒，真实会话单步 `key` 从约 2.94 秒降到 **约 0.68 秒**（同机 5 次，648–720 ms）；窗口身份、坐标、观察号与 Esc 急停的校验一条没减。
 - 接入用户主动开启调试端口的 Chrome/Edge；连接复用该浏览器配置中的登录态，不导出或复制 Cookie。
 - `batch` 一次提交最多 50 步，先校验所有步骤，依次执行、遇错即停，并逐步记录脱敏日志。已执行的步骤不会回滚。
 - 精确应用路径、网站顶层来源的 read/control 授权；默认敏感动作逐次确认；用户物理 Esc 急停。
@@ -72,6 +74,8 @@ dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.1.tgz
 
 需要坐标时先 `observe`，输入引用最新 `observation_id`，按返回的坐标模式操作。窗口移动、大小或 DPI 变化后重新观察；截图路线需要当前模型支持图像。
 
+截图默认按需：`click`/`type`/`key`/`scroll`/`drag`/`hold`/`open_*` 动作后只返回新的窗口信息和观察号，不抓图；`observe`（即 `wait`）、`apps`、`wait` 和窗口切换始终截图。想恢复旧行为（每步都截图），在 `~/.dsh/dragon-control/config.json` 写 `{ "desktopShots": "full" }`，或启动 DSH 前设 `DRAGON_DESKTOP_SHOTS=full`。改配置后重启 DSH 生效；`status.desktopShots` 显示当前模式。
+
 批量浏览器示例（每步参数仍遵循对应动作的 help）：
 
 ```json
@@ -81,7 +85,9 @@ dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.1.tgz
 ]}}
 ```
 
-桌面像素步骤可用 `observation_id: "previous"` 引用本批次之前步骤返回的新观察号。不能嵌套 batch，不能在 batch 中调用 help/status。失败或超时可能已经产生副作用，须先观察，不能盲目重试提交。
+桌面像素步骤可用 `observation_id: "previous"` 引用本批次之前步骤返回的新观察号；首步省略则沿用工具层请求里的 `observation_id`，后续步省略等同于 `previous`。不能嵌套 batch，不能在 batch 中调用 help/status。失败或超时可能已经产生副作用，须先观察，不能盲目重试提交。
+
+抢焦点有硬保护：桌面输入只有在目标窗口仍是前台时才执行；输入结束（以及 `type` 点下去到开始打字之间）如果前台换成了别的窗口，直接报 `DRAGON_FOREGROUND_CHANGED` 并清掉观察，后续步骤停下，绝不会把抢到焦点的窗口当成新目标继续操作。要换窗口就显式 `focus_window` 或重新 `observe`。
 
 ## 连接已有浏览器
 
@@ -110,6 +116,8 @@ Chrome 136 起，默认数据目录不支持这些调试开关，应使用单独
 ## 测试与限制
 
 本次 67 项回归测试通过；10 组真实 Windows 集成检查、真实 Chrome CDP 本地表单测试，以及新的自立浏览器真实无头 Edge 冒烟（open/snapshot/fill/click/wait/a11y/scrape/screenshot/execute，22 项断言）通过。报告见 [release-verification.json](release-verification.json) 和 [cdp-verification.json](cdp-verification.json)。使用自建窗口、本地网页、受控测试确认服务，未调用远程模型。
+
+重新编译原生组件前请先退出 DSH：常驻模式下 `A11yProbe.exe` / `DragonNative.exe` 正在运行，Windows 会锁住 exe 导致编译写入失败。
 
 ```powershell
 npm.cmd run build:native

@@ -46,7 +46,7 @@ export const batchDefinition = Object.freeze({
           properties: {
             action: { type: 'string' },
             args: { type: 'object', additionalProperties: true },
-            observation_id: { type: 'string', description: '桌面输入可用；写 "previous" 表示引用上一步 observe 返回的观察号。' },
+            observation_id: { type: 'string', description: '桌面输入可用；首步省略则沿用工具层的 observation_id，后续步省略等同于 "previous"（引用上一步返回的观察号）。' },
             final: { type: 'boolean', description: '为 true 时保留该步完整输出（默认为最后一步）。' }
           }
         }
@@ -143,17 +143,20 @@ export function makeControlTool({ name, actions, definitions, before, after, ima
         const def = definitions.get(actions[act]);
         if (!def) throw Error(`后端未提供 ${actions[act]}`);
         validate?.(def, actArgs);
-        const stepExec = { ...effectiveExec, dragonAction: act };
+        // 分阶段耗时写进审计日志（只有毫秒数，不含参数），供真实会话定位瓶颈。
+        const timings = {};
+        const stepExec = { ...effectiveExec, dragonAction: act, dragonTimings: timings };
         const execute = async inner => {
+          const phase = async (label, run) => { const at = Date.now(); try { return await run(); } finally { timings[label] = Date.now() - at; } };
           inner.signal.throwIfAborted();
-          await before?.({ action: act, args: actArgs, observation_id: obsId, exec: inner });
+          await phase('guard', () => before?.({ action: act, args: actArgs, observation_id: obsId, exec: inner }));
           inner.signal.throwIfAborted();
-          const value = await def.execute(actArgs, inner);
+          const value = await phase('execute', () => def.execute(actArgs, inner));
           inner.signal.throwIfAborted();
-          let content = contentBlocks(await def.output.render(actArgs, value));
-          if (image && value.dataUrl) content = [...content, await image(value.dataUrl)];
+          let content = contentBlocks(await phase('render', () => def.output.render(actArgs, value)));
+          if (image && value.dataUrl) content = [...content, await phase('image', () => image(value.dataUrl))];
           inner.signal.throwIfAborted();
-          const extra = await after?.({ action: act, args: actArgs, value, exec: inner });
+          const extra = await phase('after', () => after?.({ action: act, args: actArgs, value, exec: inner }));
           if (extra) content = [...content, { type: 'text', text: extra }];
           return { content };
         };
@@ -183,7 +186,9 @@ export function makeControlTool({ name, actions, definitions, before, after, ima
             base.signal.throwIfAborted();
             const result = { step: index + 1, action: step.action };
             const stepArgs = step.args ?? {};
-            const stepObservation = step.observation_id === 'previous' ? observation : step.observation_id;
+            // 首步省略观察号时沿用工具层那一个；后续步省略等同于 "previous"。
+            const stepObservation = step.observation_id === 'previous' ? observation
+              : (step.observation_id ?? (index === 0 ? observation_id : observation));
             try {
               const outcome = await runAction(step.action, stepArgs, stepObservation, base);
               const text = summarize(outcome.content);
@@ -213,28 +218,43 @@ export function makeControlTool({ name, actions, definitions, before, after, ima
 }
 
 export function desktopObservationGuard(backend, { now = Date.now, ttl = 120000 } = {}) {
+  const coded = (code, message) => { const error = Error(message); error.code = code; return error; };
   const records = new Map();
+  // 本轮动作的目标窗口：before 里写入，after 里核对前台有没有被抢走。不是观察号，所以不参与过期判断。
+  const targets = new Map();
   const key = exec => exec.agent?.id ?? 'local-test';
   return {
-    clear() { records.clear(); },
+    clear() { records.clear(); targets.clear(); },
     async before({ action, observation_id, exec }) {
       if (!DESKTOP_INPUT.has(action)) return;
       const prior = records.get(key(exec));
-      if (!prior || observation_id !== prior.id || now() - prior.time > ttl) throw Error('桌面观察已过期或不属于此会话，请重新 observe。');
+      if (!prior || observation_id !== prior.id || now() - prior.time > ttl) throw coded('DRAGON_OBSERVATION_STALE', '桌面观察已过期或不属于此会话，请重新 observe。');
       const screens = await backend.listScreens(exec.signal);
       const current = screens[0];
       if (!current || current.windowId !== prior.windowId || current.bounds.width !== prior.width || current.bounds.height !== prior.height ||
           current.bounds.x !== prior.x || current.bounds.y !== prior.y || (prior.identity &&
           ['pid', 'path', 'created', 'className', 'dpi'].some(k => current.dragonIdentity?.[k] !== prior.identity[k]))) {
         records.delete(key(exec));
-        throw Error('桌面目标窗口或位置已变化，请重新 observe。');
+        throw coded('DRAGON_WINDOW_CHANGED', '桌面目标窗口或位置已变化，请重新 observe。');
       }
+      targets.set(key(exec), { windowId: prior.windowId, title: current.title || current.app || '' });
       // Consume before input. A failed or interrupted input must never be replayed blindly.
       records.delete(key(exec));
     },
-    async after({ value, exec }) {
+    async after({ action, value, exec }) {
       const s = value.screens?.[0];
-      if (!s) { records.delete(key(exec)); return '当前没有可操作窗口。'; }
+      if (!s) { records.delete(key(exec)); targets.delete(key(exec)); return '当前没有可操作窗口。'; }
+      const target = targets.get(key(exec));
+      if (target && DESKTOP_INPUT.has(action) && s.windowId !== target.windowId) {
+        // 前台被别的东西抢走了：这次输入可能已经落到别的窗口，绝不能再把抢来的窗口当新目标。
+        records.delete(key(exec)); targets.delete(key(exec));
+        const front = await Promise.resolve().then(() => backend.listScreens(exec.signal)).catch(() => null);
+        const stolen = front?.[0]?.title || front?.[0]?.app || s.title || s.app || String(s.windowId);
+        const error = Error(`输入发出后前台变成了「${stolen}」，这次 ${action} 可能没有落到目标窗口；已停止后续步骤，请重新 observe。`);
+        error.code = 'DRAGON_FOREGROUND_CHANGED';
+        throw error;
+      }
+      targets.delete(key(exec));
       const current = (await backend.listScreens(exec.signal))[0];
       if (!current || current.windowId !== s.windowId || current.bounds.width !== s.logicalWidth || current.bounds.height !== s.logicalHeight) {
         records.delete(key(exec)); return '截图后窗口已变化；请重新 observe。';
@@ -247,7 +267,7 @@ export function desktopObservationGuard(backend, { now = Date.now, ttl = 120000 
       }
       records.set(key(exec), { id, time: now(), windowId: s.windowId, width: s.logicalWidth, height: s.logicalHeight,
         x: current.bounds.x, y: current.bounds.y, identity: current.dragonIdentity });
-      return `observation_id=${id}\n下一次桌面输入必须引用此 ID；每次动作后使用新截图和新 ID。`;
+      return `observation_id=${id}\n下一次桌面输入必须引用此 ID；每次动作后都会给出新 ID（截图按需，需要画面时用 observe）。`;
     }
   };
 }

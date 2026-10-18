@@ -25,6 +25,31 @@ test('dispatcher validates action and forwards exact arguments, signal and rende
   assert.equal(calls,1);
 });
 
+test('a stolen foreground fails the step instead of becoming the new target',async()=>{
+  let screen={windowId:7,bounds:{x:10,y:20,width:800,height:600},title:'客户录入器'};
+  const guard=desktopObservationGuard({listScreens:async()=>[screen]});
+  const exec={agent:{id:'a'}};
+  const id=(await guard.after({action:'observe',value:{screens:[{windowId:7,logicalWidth:800,logicalHeight:600}]},exec})).match(/observation_id=([^\n]+)/)[1];
+  await guard.before({action:'type',observation_id:id,exec});
+  screen={windowId:9,bounds:{x:0,y:0,width:800,height:600},title:'Program Manager'};
+  await assert.rejects(guard.after({action:'type',value:{screens:[{windowId:9,logicalWidth:800,logicalHeight:600}]},exec}),
+    err=>err.code==='DRAGON_FOREGROUND_CHANGED'&&/Program Manager/.test(err.message));
+  screen={windowId:7,bounds:{x:10,y:20,width:800,height:600},title:'客户录入器'};
+  await assert.rejects(guard.before({action:'key',observation_id:id,exec}),/过期/);
+});
+
+test('switching the observed window deliberately is not treated as a steal',async()=>{
+  let screen={windowId:7,bounds:{x:10,y:20,width:800,height:600},title:'A'};
+  const guard=desktopObservationGuard({listScreens:async()=>[screen]});
+  const exec={agent:{id:'a'}};
+  const id=(await guard.after({action:'observe',value:{screens:[{windowId:7,logicalWidth:800,logicalHeight:600}]},exec})).match(/observation_id=([^\n]+)/)[1];
+  await guard.before({action:'key',observation_id:id,exec});
+  await guard.after({action:'key',value:{screens:[{windowId:7,logicalWidth:800,logicalHeight:600}]},exec});
+  screen={windowId:11,bounds:{x:0,y:0,width:640,height:480},title:'B'};
+  const next=(await guard.after({action:'observe',value:{screens:[{windowId:11,logicalWidth:640,logicalHeight:480}]},exec})).match(/observation_id=([^\n]+)/)[1];
+  await guard.before({action:'key',observation_id:next,exec});
+});
+
 test('observation binding rejects another session, switched/moved window, stale observation and replay',async()=>{
   let clock=0;
   let screen={windowId:7,bounds:{x:10,y:20,width:800,height:600}};

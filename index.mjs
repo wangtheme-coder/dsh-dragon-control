@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { BROWSER_ACTIONS, DESKTOP_ACTIONS, batchDefinition, desktopObservationGuard, makeControlTool } from './control.mjs';
@@ -17,18 +18,19 @@ import { createPlatformBackend } from './platform-backend.mjs';
 import { installComputerUse } from './desktop-defs.mjs';
 import { desktopToolDenial, presetOf } from './policy.mjs';
 import { runDragonNative } from './dragon-native.mjs';
+import { closeNativeSessions } from './native-session.mjs';
 import { installSemantic, SEMANTIC_ACTIONS } from './semantic.mjs';
 import { mountModeRoutes } from './routes.mjs';
 
 export const name = 'dragon-control';
 export const inject = ['tools', 'systemPrompt', 'attachments', 'webServer', 'connection'];
-export const VERSION = '0.5.1';
+export const VERSION = '0.5.3';
 export const GUIDANCE = `你有 dragon_browser 和 dragon_desktop 两个工具；用 action=help 按需读取动作参数，action=status 查看权限、日志和下载目录。普通聊天不要自动截图。
 当任务需要操作网页或电脑时（替用户完成线上作业、填表、点按钮、打开软件、抓页面内容），主动调用这两个工具，不必等用户点名；纯聊天或纯文本任务不要动桌面。
 网页优先 DOM。浏览器由插件自己启动本机的 Edge/Chrome（独立配置，不继承现有 Chrome/Edge 登录）；用户已有开着调试端口的浏览器时，用 action=attach 连接它并保留登录态，再用 action=chrome 操作。wait 可等 URL、选择器或加载完成；下载只能写入 status 给出的插件下载目录，不覆盖文件。任意页面 execute 默认关闭。
 桌面先 windows 选择目标，再 a11y 读取精确控件的 a11y_id、element_id；优先 click_element、set_element_value、select_element、toggle_element、expand_element/collapse_element。这些语义动作无需视觉模型。wait_for 可等待精确名称/角色控件出现消失。控件无 Pattern 时不会自动坐标降级。
 多步操作（点输入框→填→回车）用 action=batch 一次提交，每步只回摘要；桌面像素动作的 observation_id 可以写 previous 引用上一步 observe。
-需要坐标时 observe 获取截图，输入必须引用最近 observation_id；遵从返回的坐标模式，不能猜位置；切窗、移动或旧 ID 必须重新观察。截图路线需要当前模型支持图像。
+需要坐标时 observe 获取截图，输入必须引用最近 observation_id；遵从返回的坐标模式，不能猜位置；切窗、移动或旧 ID 必须重新观察。截图路线需要当前模型支持图像。默认按需截图：点击/输入/按键/拖拽只续上 observation_id、不抓图，需要看画面时再 observe（它始终截图）；语义动作本来就不截图。
 用户物理 Esc 会急停所有已布防的本插件 GUI 任务，清除旧观察，拦住同轮重试；只有新的用户消息可恢复。程序发送的 Escape 不作为用户急停。监听失效时拒绝操作。
 应用/网站有独立 read/control 范围，敏感动作及网页写操作需要宿主的一次用户确认。权限被拒绝或不可用时不要重试绕过，也不要改配置来给自己授权；由用户选择允许询问的 DSH 模式或亲自配置精确允许项。管理员窗口明确拒绝，不自动提权。
 插件有两种权限模式（permissions.json 的 mode，只有用户能切）：owner 默认，敏感动作要一次确认；auto 由插件自行决定，不再询问。不要擅自改 mode，也不要把 owner 下的拒绝当成可以绕过。
@@ -85,9 +87,19 @@ async function boot(ctx, config = {}) {
   const desktopDefs = new Map();
   const frames = createObservationFrameLifecycle(() => ctx.get('computerUseOverlayGuard'));
   // 自立后端：截图/输入全部走 DragonNative.exe（独立进程），不再经过 dsh-orb。
-  const backend = scope.secureDesktop(createPlatformBackend({ postActionWaitMs: 350 }));
+  // 按需截图：默认 light，只有 observe / wait / apps 这类显式观察才抓图；
+  // 设 DRAGON_DESKTOP_SHOTS=full 或 config.json 里 { desktopShots: "full" } 可恢复每步截图。
+  let desktopShots = ['light', 'full'].includes(process.env.DRAGON_DESKTOP_SHOTS) ? process.env.DRAGON_DESKTOP_SHOTS : undefined;
+  if (!desktopShots) {
+    try {
+      const cfg = JSON.parse(await readFile(join(stateDir, 'config.json'), 'utf8'));
+      desktopShots = (cfg.desktopShots ?? cfg.desktop?.shots) === 'full' ? 'full' : 'light';
+    } catch { desktopShots = 'light'; }
+  }
+  const desktopWaitMs = desktopShots === 'light' ? 120 : 350;
+  const backend = scope.secureDesktop(createPlatformBackend({ postActionWaitMs: desktopWaitMs }));
   installComputerUse(desktopDefs, backend, {
-    postActionWaitMs: 350, listWindows: () => runDragonNative({ op: 'windows' })
+    postActionWaitMs: desktopWaitMs, shots: desktopShots, listWindows: () => runDragonNative({ op: 'windows' })
   });
   const observed = desktopObservationGuard(backend);
   const monitor = createEscapeMonitor();
@@ -158,6 +170,7 @@ async function boot(ctx, config = {}) {
   });
   ctx.effect(() => async () => {
     emergency.dispose(); observed.clear(); extra.clear(); semantic.clear(); chrome.dispose(); permissions.dispose();
+    closeNativeSessions();
     await frames.dispose(); await monitor.dispose();
     if (windowsOps) await (await windowsOps).dispose();
     if (browser) await browser.dispose();
@@ -167,7 +180,7 @@ async function boot(ctx, config = {}) {
     const route = exec.agent?.session?.requestHeader?.()?.config ?? exec.agent?.options;
     let imageInput = null;
     try { if (route?.provider && route?.model) imageInput = (await ctx.get('llm')?.resolveModelInfo(route.provider, route.model, exec.signal))?.inputModalities?.includes('image') ?? null; } catch {}
-    return { version: VERSION, emergency: emergency.status(exec), desktopImageInput: imageInput,
+    return { version: VERSION, emergency: emergency.status(exec), desktopImageInput: imageInput, desktopShots,
       semanticNeedsImageModel: false, permissions: permissions.status(), audit: audit.status(), downloadsDirectory: downloadsDir,
       browser: browser ? browser.status() : { backend: 'dragon-cdp', available: false, error: browserError },
       cdp: chrome.isAttached(exec), batch: true, supportedPlatform: 'Windows x64 only',

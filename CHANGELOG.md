@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.5.3 preview — 2026-10-18
+
+- 原生命令常驻：`DragonNative.exe` 与 `A11yProbe.exe` 改成同一进程内逐行收发请求（`native-session.mjs`），不再每次动作都新起 8–10 个进程。`A11yProbe.cs` 增加请求循环与 `{id, ok, value|error}` 信封，旧版一次性调用（不带 `id`）仍然返回原格式，所以升级途中新旧代码可以共存。
+- 常驻进程的边界条件都写在 `native-session.mjs` 里并有测试：请求按序排队、响应按 `id` 匹配、单请求 12 s（UIA 6 s）超时、取消或超时直接杀掉进程（不能让可能还在输入的原生进程继续跑）、原生报错不弄死进程、空闲 60 s 自动退出、父进程结束即随 stdin EOF 退出、插件卸载时统一关闭。
+- 校验一处没减：窗口身份、坐标、观察号过期、Esc 急停规则全部保留；省掉的是重复的进程启动和通信，不是核验。
+- 实测（同机、同一套动作、单步 `key`）：
+  - 插件层（`scripts/profile-action.mjs`，真实窗口 + 真实权限守卫）：1889 ms → 301 ms；其中守卫从每段约 386 ms 降到 13 ms，执行段 1111 ms → 279 ms。
+  - 原生单次：冷启 96–100 ms，同进程后续 `foreground`/`inspect` 2–7 ms，`tree` 约 134 ms。
+  - 真实 DSH 会话（重启后，客户录入器窗口，同场景 5 次）：`key` **648–720 ms（均值约 683 ms）**，0.5.2 同期是 2911–2967 ms；`a11y` 281 ms（0.5.2 是 828 ms），`set_element_value` 312 ms，`click_element` 369 ms，`windows` 170–259 ms，`observe`（截图）1186 ms（0.5.2 是 2184 ms，省下的是不再重复起进程）。
+  - `observe` 剩下的 1.1 秒是 PNG 编码 + base64 传输，不属于本次优化范围。
+- 审计日志的 `end` 记录新增 `timings`（`guard` / `execute` / `render` / `image` / `after` 各段毫秒数，不含参数），方便下一次在真实会话里核对宿主层开销。
+- `batch` 的观察号补全：首步省略 `observation_id` 时沿用工具层那一个，后续步省略等同于 `previous`。之前首步不带 id 会直接报「观察已过期」，把工具层的 id 白给了。
+- 抢焦点不再被当成新目标：输入动作结束后如果前台已经不是本轮目标窗口，立刻报 `DRAGON_FOREGROUND_CHANGED` 并清掉观察，后续步骤一律停下，不会再像以前那样把抢到焦点的窗口当成下一次输入的目标。`type` 在「点下去 → 开始打字」这 60 ms 缝隙里也补了一次前台核对，前台不对就一个字都不发。主动切换窗口（`focus_window` / 重新 `observe`）不受影响。代价是每次 `type` 多一次 `foreground` 查询（常驻进程内 2–7 ms）。
+- 同一任务端到端复测（客户录入器 5 条 + 导出 + 报告 + 三端核对，同一台机器）：界面操作 **5 分 01 秒 → 2 分 11 秒**，全流程 **16 分 01 秒 → 2 分 39 秒**，仍 40/40 通过；做法改成「一条记录一次 batch + 保存前 a11y 回读」。
+- 回归测试 80 项通过（新增 `native-session` 5 项、`batch` 默认观察号 1 项、抢焦点 2 项）。
+- 守卫失败也带专用错误码：过期记 `DRAGON_OBSERVATION_STALE`，窗口变化记 `DRAGON_WINDOW_CHANGED`（原来只有一句中文、审计里归成 `DRAGON_ACTION_FAILED`）；分段 `timings` 在阶段抛错时也会记录耗时。
+- 重启后实测（客户录入器，20:2x）：
+  - batch 只给工具层观察号、两步都不写 `id`：跑通，文字正确落在「客户名称」，回读 `验证测试` 后清空；
+  - 用置顶遮挡窗压住「客户名称」再 `type`：报 `DRAGON_FOREGROUND_CHANGED`，**遮挡窗输入框和目标字段都没收到文字**，审计里该次记录 `timings.guard=420 ms`；
+  - 最小化目标窗口后 `type`：被拒（当时记 `DRAGON_ACTION_FAILED`，新版记 `DRAGON_WINDOW_CHANGED`）。
+
+## 0.5.2 preview — 2026-10-18
+
+- 按需截图（默认 light）：`click` / `type`（`input_text`）/ `key`（`hotkey`）/ `scroll` / `drag` / `hold` / `open_app` / `open_in_browser` / `open_in_finder` 动作后不再抓 2560×1440 的窗口 PNG，只取窗口信息并续上 `observation_id`；`observe`（`wait`）、`apps`（`list_apps`）和 `focus_window` 仍然截图。观察号、坐标校验、过期与窗口身份检查逻辑不变，模型想看图时显式 `observe`。
+- 实测分两层：
+  - 插件层（`scripts/bench-shots.mjs`，真实 `客户录入器.exe` 窗口，5 次 `key`）：单步 1029 ms → 439 ms。
+  - 真实 DSH 会话（重启后同机会话 `history`）：`key` 稳定 2.91–2.97 秒，`observe`（截图）2.18 秒，`windows` 0.26 秒；0.5.1 同期 `type` 是 4.45 秒。
+  - 结论：图片那一步省掉了，但每步仍有约 2.5 秒花在原生命令逐个起进程（`DragonNative.exe` / `A11yProbe.exe` 每次约 95–100 ms，一次输入动作要 8–10 次）和宿主层开销上。再降需要原生层常驻进程 + 单轮内复用窗口身份，属下一步，不在本版。
+- light 模式下动作后的固定等待从 350 ms 降到 120 ms（没有图片要等渲染），`full` 模式仍是 350 ms。
+- 恢复旧行为：`~/.dsh/dragon-control/config.json` 写 `{ "desktopShots": "full" }`，或启动 DSH 前设 `DRAGON_DESKTOP_SHOTS=full`。
+- 新增 `scripts/bench-shots.mjs`（不启动 DSH，直接测 lower layer，可对 fixture 或任意 exe 窗口跑）；回归测试 72 项通过。
 ## 0.5.1 preview — 2026-10-18（0.5.0 未公开发布，内容并入本版）
 
 - 首发热修：上一行 `0.5.0` 的网页自立化内容与本条一并发布为 0.5.1。

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Web.Script.Serialization;
@@ -125,57 +126,110 @@ class A11yProbe {
             width = rect.IsEmpty ? 0 : rect.Width, height = rect.IsEmpty ? 0 : rect.Height
         };
     }
-    [STAThread] static int Main(string[] args) {
-        try {
-            SetProcessDPIAware(); try { SetThreadDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) { }
-            Dictionary<string,object> request;
-            if (args.Length == 1) request = new Dictionary<string,object> { { "windowId", Int64.Parse(args[0]) }, { "op", "tree" } };
-            else {
-                Console.InputEncoding = new UTF8Encoding(false);
-                string input = Console.In.ReadToEnd(); if (input.Length > 131072) Fail("DRAGON_ARGUMENT_LIMIT");
-                request = Json.Deserialize<Dictionary<string,object>>(input);
-            }
-            long id = Convert.ToInt64(Get(request, "windowId")); if (id <= 0) Fail("DRAGON_INVALID_WINDOW");
-            string op = Str(request, "op"); var meta = Inspect(id);
-            if (op == "inspect") { Emit(meta); return 0; }
-            if (!Convert.ToBoolean(Get(meta, "interactiveDesktop"))) Fail("DRAGON_DESKTOP_UNAVAILABLE");
-            if (Get(request, "expected") != null) CheckIdentity(meta, Obj(request, "expected"));
-            if (!Convert.ToBoolean(Get(meta, "accessKnown"))) Fail("DRAGON_WINDOW_ACCESS_DENIED");
-            if (Convert.ToBoolean(Get(meta, "elevated"))) Fail("DRAGON_WINDOW_ELEVATED");
-            AutomationElement root = AutomationElement.FromHandle(new IntPtr(id));
-            bool truncated; var found = Elements(root, out truncated);
-            if (op != "tree") {
-                CheckIdentity(meta, Obj(request, "expected"));
-                var target = Obj(request, "element"); if (target == null) Fail("DRAGON_TARGET_REQUIRED");
-                AutomationElement selected = null;
-                foreach (var element in found) try { if (SameElement(element, target)) { if (selected != null) Fail("DRAGON_TARGET_AMBIGUOUS"); selected = element; } } catch (ElementNotAvailableException) { }
-                if (selected == null) Fail("DRAGON_ELEMENT_STALE");
-                var c = selected.Current;
-                if (!c.IsEnabled || c.IsOffscreen) Fail("DRAGON_ELEMENT_UNAVAILABLE");
-                if (c.IsPassword) Fail("DRAGON_PASSWORD_HANDOFF");
-                CheckIdentity(Inspect(id), Obj(request, "expected")); object pattern;
-                if (op == "invoke" && selected.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) ((InvokePattern)pattern).Invoke();
-                else if (op == "set_value" && selected.TryGetCurrentPattern(ValuePattern.Pattern, out pattern)) {
-                    if (((ValuePattern)pattern).Current.IsReadOnly) Fail("DRAGON_ELEMENT_READ_ONLY");
-                    string text = Str(request, "value"); if (text.Length > 16384) Fail("DRAGON_ARGUMENT_LIMIT");
-                    ((ValuePattern)pattern).SetValue(text);
-                } else if (op == "select" && selected.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pattern)) ((SelectionItemPattern)pattern).Select();
-                else if (op == "toggle" && selected.TryGetCurrentPattern(TogglePattern.Pattern, out pattern)) ((TogglePattern)pattern).Toggle();
-                else if ((op == "expand" || op == "collapse") && selected.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out pattern)) {
-                    if (op == "expand") ((ExpandCollapsePattern)pattern).Expand(); else ((ExpandCollapsePattern)pattern).Collapse();
-                } else Fail("DRAGON_PATTERN_UNSUPPORTED");
-                System.Threading.Thread.Sleep(80);
-                if (!IsWindow(new IntPtr(id))) {
-                    Emit(new { windowId = id, identity = meta, elements = new object[0], truncated = false, actionAccepted = true, windowClosed = true }); return 0;
-                }
-                CheckIdentity(Inspect(id), Obj(request, "expected")); found = Elements(root, out truncated);
-            }
-            var nodes = new List<object>();
-            foreach (var element in found) try { nodes.Add(Node(element, nodes.Count)); } catch (ElementNotAvailableException) { } catch (InvalidOperationException) { }
-            Emit(new { windowId = id, identity = meta, elements = nodes, truncated = truncated, actionAccepted = op != "tree" }); return 0;
-        } catch (Exception error) {
-            string message = error.Message; Console.Error.Write(message.StartsWith("DRAGON_") ? message : "DRAGON_UIA_UNAVAILABLE"); return 1;
+    [STAThread] static int Main(string[] args)
+    {
+        try { SetProcessDPIAware(); try { SetThreadDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) { } } catch { }
+        if (args.Length == 1) {
+            try { Emit(TreeFor(long.Parse(args[0]))); return 0; }
+            catch (Exception error) { Console.Error.Write(Code(error)); return 1; }
         }
+        Console.InputEncoding = new UTF8Encoding(false);
+        var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+        string line;
+        while ((line = input.ReadLine()) != null) {
+            if (line.Trim().Length == 0) continue;
+            long rid = 0;
+            Dictionary<string, object> request = null;
+            try { request = Json.Deserialize<Dictionary<string, object>>(line); } catch (Exception error) {
+                Console.Error.Write("DRAGON_UIA_UNAVAILABLE"); return 1;
+            }
+            if (!request.ContainsKey("id")) {
+                // 旧版一次性调用（不传 id）：原样返回 value，出错写 stderr 并以 1 退出。
+                try { Emit(Dispatch(request)); return 0; }
+                catch (Exception error) { Console.Error.Write(Code(error)); return 1; }
+            }
+            rid = RequestId(request);
+            try {
+                EmitReply(rid, true, Dispatch(request), null);
+            } catch (Exception error) {
+                EmitReply(rid, false, null, Code(error));
+            }
+        }
+        return 0;
     }
+
+    static string Code(Exception error)
+    {
+        string message = error.Message;
+        return message.StartsWith("DRAGON_") ? message : "DRAGON_UIA_UNAVAILABLE";
+    }
+
+    static long RequestId(Dictionary<string, object> request)
+    {
+        object value; request.TryGetValue("id", out value);
+        return value == null ? 0L : Convert.ToInt64(value);
+    }
+
+    static void EmitReply(long id, bool ok, object value, string error)
+    {
+        var payload = new Dictionary<string, object> { { "id", id }, { "ok", ok } };
+        if (ok) payload["value"] = value; else payload["error"] = error;
+        Console.OutputEncoding = new UTF8Encoding(false);
+        Console.Out.WriteLine(Json.Serialize(payload));
+        Console.Out.Flush();
+    }
+
+    static object TreeFor(long id)
+    {
+        var meta = Inspect(id);
+        AutomationElement root = AutomationElement.FromHandle(new IntPtr(id));
+        bool truncated; var found = Elements(root, out truncated);
+        var nodes = new List<object>();
+        foreach (var element in found) try { nodes.Add(Node(element, nodes.Count)); } catch (ElementNotAvailableException) { } catch (InvalidOperationException) { }
+        return new { windowId = id, identity = meta, elements = nodes, truncated = truncated, actionAccepted = false };
+    }
+
+    static object Dispatch(Dictionary<string, object> request)
+    {
+        long id = Convert.ToInt64(Get(request, "windowId")); if (id <= 0) Fail("DRAGON_INVALID_WINDOW");
+        string op = Str(request, "op"); var meta = Inspect(id);
+        if (op == "inspect") return meta;
+        if (!Convert.ToBoolean(Get(meta, "interactiveDesktop"))) Fail("DRAGON_DESKTOP_UNAVAILABLE");
+        if (Get(request, "expected") != null) CheckIdentity(meta, Obj(request, "expected"));
+        if (!Convert.ToBoolean(Get(meta, "accessKnown"))) Fail("DRAGON_WINDOW_ACCESS_DENIED");
+        if (Convert.ToBoolean(Get(meta, "elevated"))) Fail("DRAGON_WINDOW_ELEVATED");
+        AutomationElement root = AutomationElement.FromHandle(new IntPtr(id));
+        bool truncated; var found = Elements(root, out truncated);
+        if (op != "tree") {
+            CheckIdentity(meta, Obj(request, "expected"));
+            var target = Obj(request, "element"); if (target == null) Fail("DRAGON_TARGET_REQUIRED");
+            AutomationElement selected = null;
+            foreach (var element in found) try { if (SameElement(element, target)) { if (selected != null) Fail("DRAGON_TARGET_AMBIGUOUS"); selected = element; } } catch (ElementNotAvailableException) { }
+            if (selected == null) Fail("DRAGON_ELEMENT_STALE");
+            var c = selected.Current;
+            if (!c.IsEnabled || c.IsOffscreen) Fail("DRAGON_ELEMENT_UNAVAILABLE");
+            if (c.IsPassword) Fail("DRAGON_PASSWORD_HANDOFF");
+            CheckIdentity(Inspect(id), Obj(request, "expected")); object pattern;
+            if (op == "invoke" && selected.TryGetCurrentPattern(InvokePattern.Pattern, out pattern)) ((InvokePattern)pattern).Invoke();
+            else if (op == "set_value" && selected.TryGetCurrentPattern(ValuePattern.Pattern, out pattern)) {
+                if (((ValuePattern)pattern).Current.IsReadOnly) Fail("DRAGON_ELEMENT_READ_ONLY");
+                string text = Str(request, "value"); if (text.Length > 16384) Fail("DRAGON_ARGUMENT_LIMIT");
+                ((ValuePattern)pattern).SetValue(text);
+            } else if (op == "select" && selected.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pattern)) ((SelectionItemPattern)pattern).Select();
+            else if (op == "toggle" && selected.TryGetCurrentPattern(TogglePattern.Pattern, out pattern)) ((TogglePattern)pattern).Toggle();
+            else if ((op == "expand" || op == "collapse") && selected.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out pattern)) {
+                if (op == "expand") ((ExpandCollapsePattern)pattern).Expand(); else ((ExpandCollapsePattern)pattern).Collapse();
+            } else Fail("DRAGON_PATTERN_UNSUPPORTED");
+            System.Threading.Thread.Sleep(80);
+            if (!IsWindow(new IntPtr(id))) {
+                return new { windowId = id, identity = meta, elements = new object[0], truncated = false, actionAccepted = true, windowClosed = true };
+            }
+            CheckIdentity(Inspect(id), Obj(request, "expected")); found = Elements(root, out truncated);
+        }
+        var nodes = new List<object>();
+        foreach (var element in found) try { nodes.Add(Node(element, nodes.Count)); } catch (ElementNotAvailableException) { } catch (InvalidOperationException) { }
+        return new { windowId = id, identity = meta, elements = nodes, truncated = truncated, actionAccepted = op != "tree" };
+    }
+
     static void Emit(object value) { Console.OutputEncoding = new UTF8Encoding(false); Console.Write(Json.Serialize(value)); }
 }
