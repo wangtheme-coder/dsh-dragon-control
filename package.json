@@ -1,0 +1,95 @@
+{
+  "name": "dsh-dragon-control",
+  "version": "0.5.1",
+  "type": "module",
+  "description": "Windows x64 only: self-contained DOM/CDP browser (system Edge/Chrome) and UI Automation control for DSH Desktop.",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "*.mjs",
+    "client.js",
+    "native/A11yProbe.cs",
+    "native/A11yProbe.exe",
+    "native/DragonNative.cs",
+    "native/DragonNative.exe",
+    "native/build.ps1",
+    "test/*.mjs",
+    "test/fixtures/*.cs",
+    "test/fixtures/*.ps1",
+    "scripts/*.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "THIRD_PARTY_NOTICES.md",
+    "release-verification.json",
+    "LICENSE",
+    "cdp-verification.json",
+    "PUBLISHING.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "mode": "node scripts/mode.mjs",
+    "test:integration": "node scripts/integration.mjs",
+    "pack:local": "node scripts/package.mjs",
+    "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File native/build.ps1",
+    "smoke:cdp": "node scripts/cdp-smoke.mjs",
+    "market:index": "node scripts/market-index.mjs",
+    "smoke:self": "node scripts/self-browser-smoke.mjs",
+    "smoke:load": "node scripts/load-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=24",
+    "dsh": "0.2.0-rc.2"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "author": "dsh-dragon-control contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wangtheme-coder/dsh-dragon-control.git"
+  },
+  "homepage": "https://github.com/wangtheme-coder/dsh-dragon-control#readme",
+  "bugs": {
+    "url": "https://github.com/wangtheme-coder/dsh-dragon-control/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "browser",
+    "computer-use",
+    "windows"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}

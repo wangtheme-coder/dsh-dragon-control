@@ -1,0 +1,10 @@
+{
+  "remoteModelCalls": 0,
+  "checks": [
+    "all published actions resolve to installed backend schemas",
+    "real browser navigation, DOM text input, click and result readback",
+    "browser screenshot is a model-visible image attachment",
+    "native Windows capture with session-bound observation ID",
+    "native input rejected without matching observation"
+  ]
+}

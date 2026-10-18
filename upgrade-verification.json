@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "remoteModelCalls": 0,
+  "checks": [
+    "native window enumeration and exact window activation",
+    "real UI Automation controls read with password value excluded",
+    "agent-injected Escape does not accidentally trigger emergency stop",
+    "native Esc listener and capability diagnostics are ready",
+    "Windows keyboard hook receives real OS Escape event and cancels work",
+    "same-turn retry remains blocked after native Escape"
+  ]
+}

@@ -1,0 +1,5 @@
+node_modules/
+*.tgz
+installation.json
+publishing/
+.env

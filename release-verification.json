@@ -1,0 +1,27 @@
+{
+  "version": "0.4.1",
+  "remoteModelCalls": 0,
+  "checks": [
+    "only two registered tools; all action schemas available",
+    "real Windows UIA SetValue/Toggle/Select/Invoke with state readback and no image model",
+    "native condition wait and explicit timeout",
+    "owned real Windows dialog opened and closed semantically",
+    "official schema validation rejects invalid parameters before network side effects",
+    "rejected website scope causes zero navigation requests",
+    "real visible browser form input, one submit, conditional wait and result readback",
+    "download content verified; overwrite and directory escape rejected; page script disabled",
+    "session-scoped audit contains outcomes without field values or scripts",
+    "never approval policy fails closed"
+  ],
+  "realWindowsFixture": true,
+  "realBrowser": true,
+  "approvals": "controlled test service, not a human approval UI test",
+  "stillManual": [
+    "physical Esc from a human keyboard",
+    "mixed-DPI/multi-monitor matrix",
+    "DSH UI approval rendering",
+    "real model planning task",
+    "current elevated Orb overlay"
+  ],
+  "snapshotsCreated": 0
+}

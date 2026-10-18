@@ -1,0 +1,13 @@
+{
+  "version": "0.2.1",
+  "remoteModelCalls": 0,
+  "actualNativeCaptures": 1,
+  "checks": [
+    "clear during mount",
+    "real native observation clears after action",
+    "turn end clears shared frame",
+    "unload clears shared frame"
+  ],
+  "unitTests": 18,
+  "liveHelper": "separate from test guard; verify independently"
+}

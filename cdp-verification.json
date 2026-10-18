@@ -1,0 +1,18 @@
+{
+  "version": "0.4.1",
+  "ownIsolatedBrowser": true,
+  "remoteModelCalls": 0,
+  "approvals": "controlled test service",
+  "checks": [
+    "attach Chrome/155.0.8059.82 tabs=1",
+    "open own local fixture",
+    "tabs=2 titles=龙爪 CDP|",
+    "fill ok",
+    "click ok",
+    "text contains 你好 龙爪",
+    "wait matched=true",
+    "screenshot bytes=6039",
+    "file:// blocked",
+    "detach ok"
+  ]
+}
