@@ -1,6 +1,6 @@
 # dsh-dragon-control
 
-[中文](README.md) · 0.5.1 preview · MIT
+[中文](README.md) · 0.5.4 preview · MIT
 
 **Windows x64 only. macOS, Linux, WSL and headless servers are unsupported, including for browser-only usage.**
 
@@ -11,14 +11,14 @@ Two tools for DSH Desktop conversations: `dragon_browser` and `dragon_desktop`. 
 Adapted combination: Windows x64, Node.js 24, DSH Desktop 0.2.0-rc.2, and a system installation of Microsoft Edge or Google Chrome. The plugin now ships its own browser launcher and CDP client, so it runs standalone and does not need dsh-orb or dsh-builtin-browser.
 
 ```powershell
-dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.1.tgz
+dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.4.tgz
 ```
 
 DSH plugin management can also install a local archive. On the first browser action the plugin looks for `DRAGON_BROWSER_PATH`, then the system Edge and Chrome, and launches it with its own profile directory, so your everyday browser logins are not reused. Data defaults to `<DSH_HOME>/dragon-control`; users can configure `dataDir`. The package includes native source and a prebuilt helper, with no install-time scripts.
 
-Download the archive/checksums from [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases), or install the version tag with `dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.1`. For immutable installation, use the full reviewed commit SHA instead of a tag.
+Download the archive/checksums from [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases), or install the version tag with `dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`. For immutable installation, use the full reviewed commit SHA instead of a tag.
 
-Finish active work, fully quit DSH through its tray menu, restart and create a fresh conversation. `action=status` should return version 0.5.1, `backends.browser: dragon-cdp` and `Windows x64 only`.
+Finish active work, fully quit DSH through its tray menu, restart and create a fresh conversation. `action=status` should return version 0.5.4, `backends.browser: dragon-cdp` and `Windows x64 only`.
 
 ## Features and usage
 

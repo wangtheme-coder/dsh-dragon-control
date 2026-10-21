@@ -1,13 +1,13 @@
 # GitHub 与插件市场发布
 
-本插件仅支持 Windows x64，当前为 0.5.1 预览版。发布材料、仓库描述和市场描述均须保留这一限制。
+本插件仅支持 Windows x64，当前为 0.5.4 预览版。发布材料、仓库描述和市场描述均须保留这一限制。
 
 ## GitHub
 
 1. 运行 `npm run build:native`、`npm run check`、`npm test`、`npm run smoke:cdp`；Windows/DSH 集成另运行 `npm run test:integration`。
 2. 审查暂存文件：只提交本项目源码、文档、测试、原生组件和公开验证报告。不得提交 DSH 运行环境、账号、个人路径、权限配置、浏览器配置、日志、截图、下载或安装记录。
 3. 为公共仓库添加 `dsh-plugin`、`windows`、`computer-use`、`browser-automation` topics，设置仓库描述、MIT license 及私密漏洞报告入口。
-4. `npm run pack:local` 生成 tgz、SHA256SUMS.txt 和逐文件 manifest。发布 GitHub prerelease `v0.5.1`，上传这三个文件。这里不执行 npm publish。
+4. `npm run pack:local` 生成 tgz、SHA256SUMS.txt 和逐文件 manifest。发布 GitHub prerelease `v0.5.4`，上传这三个文件。这里不执行 npm publish。
 5. 等待真实 GitHub CI 完成，核对远端提交和 release 资产；不能把本地检查当作已通过 GitHub CI。
 
 ## 插件市场（dshmarket 实际读取的那个）

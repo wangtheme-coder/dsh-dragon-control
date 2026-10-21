@@ -1,6 +1,6 @@
 # 龙爪控制 · dsh-dragon-control
 
-[English](README.en.md) · 0.5.1 preview · MIT
+[English](README.en.md) · 0.5.4 preview · MIT
 
 **仅支持 Windows x64。不适用于 macOS、Linux、WSL 或无桌面的服务器。即使只用网页功能，目前也需要 Windows 后端。**
 
@@ -24,17 +24,17 @@
 
 直接在目标 DSH profile 安装本插件即可。使用默认的 `desktop` profile 时，可在兼容的 DSH CLI 中执行：
 
-从 [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases) 下载 tgz 和校验文件，或按版本标签安装：`dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.1`。需要不可变安装时，将标签换成完整源码提交 SHA。
+从 [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases) 下载 tgz 和校验文件，或按版本标签安装：`dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`。需要不可变安装时，将标签换成完整源码提交 SHA。
 
 ```powershell
-dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.1.tgz
+dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.4.tgz
 ```
 
 也可通过 DSH 插件管理安装本地 tgz。首次执行网页动作时，插件会查找 `DRAGON_BROWSER_PATH`，否则依次尝试系统 Edge、Chrome；用独立配置目录启动，不读取你日常浏览器的登录态。软件包包含原生组件的源码及预编译文件，没有安装时执行的脚本。
 
 非默认 profile 需要在插件行配置 `profileDir`，指向实际 profile 绝对路径。插件数据默认放在 `<DSH_HOME>/dragon-control`，也可由用户配置 `dataDir`。不要将个人路径写进公共发布文件。
 
-更新后，先结束当前任务，再从系统托盘完整退出 DSH、重新打开并新建会话。`action=status` 应显示 `version: 0.5.1`、`backends.browser: dragon-cdp` 和 `supportedPlatform: Windows x64 only`。
+更新后，先结束当前任务，再从系统托盘完整退出 DSH、重新打开并新建会话。`action=status` 应显示 `version: 0.5.4`、`backends.browser: dragon-cdp` 和 `supportedPlatform: Windows x64 only`。
 
 ## 权限模式
 
