@@ -16,7 +16,7 @@ dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.4.tgz
 
 DSH plugin management can also install a local archive. On the first browser action the plugin looks for `DRAGON_BROWSER_PATH`, then the system Edge and Chrome, and launches it with its own profile directory, so your everyday browser logins are not reused. Data defaults to `<DSH_HOME>/dragon-control`; users can configure `dataDir`. The package includes native source and a prebuilt helper, with no install-time scripts.
 
-Download the archive/checksums from [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases), or install the version tag with `dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`. For immutable installation, use the full reviewed commit SHA instead of a tag.
+Install from npm first: dsh plugin --profile desktop add dsh-dragon-control. You can also download the archive/checksums from [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases), or install the version tag with `dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`. For immutable installation, use the full reviewed commit SHA instead of a tag.
 
 Finish active work, fully quit DSH through its tray menu, restart and create a fresh conversation. `action=status` should return version 0.5.4, `backends.browser: dragon-cdp` and `Windows x64 only`.
 

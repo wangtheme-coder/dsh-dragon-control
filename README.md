@@ -24,7 +24,7 @@
 
 直接在目标 DSH profile 安装本插件即可。使用默认的 `desktop` profile 时，可在兼容的 DSH CLI 中执行：
 
-从 [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases) 下载 tgz 和校验文件，或按版本标签安装：`dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`。需要不可变安装时，将标签换成完整源码提交 SHA。
+首选 npm 安装：dsh plugin --profile desktop add dsh-dragon-control。也可以从 [GitHub Releases](https://github.com/wangtheme-coder/dsh-dragon-control/releases) 下载 tgz 和校验文件，或按版本标签安装：`dsh plugin --profile desktop add github:wangtheme-coder/dsh-dragon-control#v0.5.4`。需要不可变安装时，将标签换成完整源码提交 SHA。
 
 ```powershell
 dsh plugin --profile desktop add C:/path/to/dsh-dragon-control-0.5.4.tgz
