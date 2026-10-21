@@ -1,6 +1,6 @@
 {
   "name": "dsh-dragon-control",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "type": "module",
   "description": "Windows x64 only: self-contained DOM/CDP browser (system Edge/Chrome) and UI Automation control for DSH Desktop.",
   "main": "index.mjs",
@@ -48,7 +48,7 @@
   },
   "engines": {
     "node": ">=24",
-    "dsh": "0.2.0-rc.2"
+    "dsh": ">=0.2.0-rc.2 <0.2.2-0"
   },
   "os": [
     "win32"
@@ -58,7 +58,7 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-tools": ">=0.2.0-rc.2 <0.2.2-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {

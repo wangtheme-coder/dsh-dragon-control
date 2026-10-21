@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.4 preview — 2026-10-22
+
+- 兼容 DSH Desktop 0.2.1-rc.2：`engines.dsh` 由精确的 `0.2.0-rc.2` 放宽为 `>=0.2.0-rc.2 <0.2.2-0`。0.2.1 起宿主会在装载时校验 `engines.dsh`，精确钉死的插件会被**静默跳过**（只在启动 stderr 留一行 `skipping profile bundle … incompatible with dsh 0.2.1-rc.2`，界面无任何提示），表现为插件行、工具和补丁层一起消失。`peerDependencies` 里的 `@deepseek-ai/dsh-tools` 同步放宽到同一区间。
+- 核对过 0.2.1 的兼容面：`@deepseek-ai/dsh-tools` 仍导出插件唯一用到的 `validateJsonSchemaValue`（`index.mjs:59`），插件行在 0.2.1 宿主里能正常装载、`dragon_browser` / `dragon_desktop` 工具照常注册；本次只改兼容声明，未改任何动作、权限或审计逻辑。
+- 未变更：CDP / UI Automation 后端、作用域权限、物理 Esc 急停、批量动作与脱敏审计均与 0.5.3 相同；0.5.3 的性能结论继续适用。
+- 验证状态：本地 `npm run check` 与 `npm test` 通过；Windows 真机 UI 自动化回归（真实窗口、混合 DPI、管理员窗口）仍按 PUBLISHING.md 的稳定版前清单另外记录，不能用本地检查替代 GitHub CI。
+
 ## 0.5.3 preview — 2026-10-18
 
 - 原生命令常驻：`DragonNative.exe` 与 `A11yProbe.exe` 改成同一进程内逐行收发请求（`native-session.mjs`），不再每次动作都新起 8–10 个进程。`A11yProbe.cs` 增加请求循环与 `{id, ok, value|error}` 信封，旧版一次性调用（不带 `id`）仍然返回原格式，所以升级途中新旧代码可以共存。
