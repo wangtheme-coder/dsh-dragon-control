@@ -7,7 +7,7 @@
 1. 运行 `npm run build:native`、`npm run check`、`npm test`、`npm run smoke:cdp`；Windows/DSH 集成另运行 `npm run test:integration`。
 2. 审查暂存文件：只提交本项目源码、文档、测试、原生组件和公开验证报告。不得提交 DSH 运行环境、账号、个人路径、权限配置、浏览器配置、日志、截图、下载或安装记录。
 3. 为公共仓库添加 `dsh-plugin`、`windows`、`computer-use`、`browser-automation` topics，设置仓库描述、MIT license 及私密漏洞报告入口。
-4. `npm run pack:local` 生成 tgz、SHA256SUMS.txt 和逐文件 manifest。发布 GitHub prerelease `v0.5.4`，上传这三个文件。这里不执行 npm publish。
+4. `npm run pack:local` 生成 tgz、SHA256SUMS.txt 和逐文件 manifest。发布 GitHub prerelease `v0.5.4`，上传这三个文件。然后执行 `pwsh -File publishing/publish-npm.ps1` 发到 npm —— 插件市场的一键更新只认 npm / git 两种来源，Release tgz 的 URL 安装永远不会提示更新。
 5. 等待真实 GitHub CI 完成，核对远端提交和 release 资产；不能把本地检查当作已通过 GitHub CI。
 
 ## 插件市场（dshmarket 实际读取的那个）
@@ -19,7 +19,7 @@
 - 条目内容：`publishing/awesome-dsh-plugin-entry.yml`
 - PR 标题与正文：`publishing/PR-BODY.md`
 - 有效分类里用 `browser`（没有 `computer-use`）
-- 不发 npm 也行：Release 挂预构建 tgz，用 `tarball:` 钉到 tag
+- 已发布 npm（`dsh-dragon-control`，latest 跟版本走），市场条目按仓库地址自动关联到它；`tarball:` 仍钉到 tag，作为不可变兜底
 
 版号变化时必须同步三处：`awesome-dsh-plugin-entry.yml` 的 `tarball:`、PR 正文里的 yaml 块、以及新 tag 的 Release 资产，否则市场里下载到的还是旧版。
 
@@ -43,7 +43,7 @@ npm.cmd run market:index -- https://github.com/OWNER/dsh-dragon-control FULL_40_
 
 - 名称：dsh-dragon-control（龙爪控制）。
 - GitHub 仓库：实际公开仓库 URL。
-- npm 包：未发布 npm；通过 GitHub 固定提交或 Release tgz 安装。
+- npm 包：`dsh-dragon-control`（已发布）。也可通过 GitHub 固定提交或 Release tgz 安装。
 - 描述：仅支持 Windows x64，为 DSH Desktop 提供 DOM/CDP 网页和 Windows UI Automation 桌面操作，保留两个工具、作用域权限、物理 Esc 急停、批量动作和脱敏审计。
 - 分类：Automation（自动化）。
 - 外部条件：需要 Windows 图形桌面、Node.js 24、DSH Desktop 0.2.0-rc.2，以及本机安装的 Microsoft Edge 或 Google Chrome（插件自带启动与 CDP 驱动，不需要其他插件）；插件无需额外 API key。模型由宿主提供；CDP 需用户主动开启调试端口。
